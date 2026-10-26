@@ -6,11 +6,23 @@
 Keep screens, input handling, haptics, and watch lifecycle in the Wear app. Keep scoring
 rules independent of Android so another UI can reuse them.
 
-The starter repository stores the current match UUID and ordered point log in private
-SharedPreferences. Replaying the log reconstructs state and enables undo. Writes happen
-on a serial background dispatcher before publishing the new state. This intentionally
-small implementation can migrate to Room when match history is added. Persisted data
-includes a schema version; introduce migrations when changing the format or rule engine.
+The repository stores the current match UUID, immutable rules, first server, and ordered
+point log in private SharedPreferences (schema version 2). Replaying the log reconstructs
+state, all four players' service turns, and undo. Version 1 logs replay with the original
+default rules and first server. Default settings are stored separately and only apply to
+new matches. A fresh install has no current match until the user starts one.
+
+Writes run off the UI thread and complete before publishing the new state. The ViewModel
+gates actions while a write is pending; the repository updates its in-memory state only
+after a successful commit and exposes failures to the UI. It caches the current state
+for normal scoring and replays the log for undo. This small implementation can migrate
+to Room when a match archive is added.
+
+The Wear UI owns navigation, haptics, selection timeout, and bezel cooldown. The pure
+`PointInput` reducer requires selection before confirmation, resets rotary progress when
+direction changes, and shares a selection between touch and bezel input. Selection is
+transient and cleared when leaving the court or pausing the app; only confirmed points
+are persisted. Scoring and input transitions have local JVM regression tests.
 
 ## Future companion
 

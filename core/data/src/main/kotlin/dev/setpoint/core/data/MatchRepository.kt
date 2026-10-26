@@ -1,39 +1,96 @@
 package dev.setpoint.core.data
 
 import android.content.Context
+import dev.setpoint.core.scoring.MatchRules
 import dev.setpoint.core.scoring.MatchState
+import dev.setpoint.core.scoring.Player
 import dev.setpoint.core.scoring.Scoring
 import dev.setpoint.core.scoring.Team
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Persists the point log, allowing deterministic restore and undo across launches. */
+/** Persists match rules and the point log, allowing restore and undo across launches. */
 class MatchRepository(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences("matches", Context.MODE_PRIVATE)
-    private var id: String
-    private val points = mutableListOf<Team>()
+    private var initial: MatchState? = null
+    private var points: List<Team> = emptyList()
+    private var state: MatchState? = null
+    private var defaults = preferences.getString("settings", null)?.let { readRules(JSONObject(it)) }
+        ?: MatchRules()
+
     init {
-        val saved = preferences.getString("current", null)?.let { JSONObject(it) }
-        id = saved?.getString("id") ?: MatchState().id
-        saved?.getJSONArray("points")?.let { array ->
-            repeat(array.length()) { points += Team.valueOf(array.getString(it)) }
+        preferences.getString("current", null)?.let { serialized ->
+            val saved = JSONObject(serialized)
+            // Version 1 contained only id + points; replay with the original default rules.
+            initial = MatchState(
+                id = saved.getString("id"),
+                rules = saved.optJSONObject("rules")?.let(::readRules) ?: MatchRules(),
+                firstServer = Player.valueOf(saved.optString("firstServer", Player.ME.name)),
+            )
+            val array = saved.getJSONArray("points")
+            points = List(array.length()) { Team.valueOf(array.getString(it)) }
+            state = points.fold(checkNotNull(initial), Scoring::award)
         }
     }
-    fun current(): MatchState = points.fold(MatchState(id = id), Scoring::award)
+
+    fun current(): MatchState? = state
+    fun settings(): MatchRules = defaults
     fun canUndo(): Boolean = points.isNotEmpty()
-    fun award(team: Team): MatchState {
-        if (current().winner == null) { points += team; persist() }
-        return current()
+
+    fun saveSettings(rules: MatchRules) {
+        check(preferences.edit().putString("settings", writeRules(rules).toString()).commit()) {
+            "Could not save settings"
+        }
+        defaults = rules
     }
-    fun undo(): MatchState {
-        if (points.isNotEmpty()) { points.removeAt(points.lastIndex); persist() }
-        return current()
+
+    fun start(firstServer: Player): MatchState {
+        val next = MatchState(rules = defaults, firstServer = firstServer)
+        persist(next, emptyList())
+        initial = next
+        points = emptyList()
+        state = next
+        return next
     }
-    private fun persist() {
-        val value = JSONObject().put("schemaVersion", 1).put("id", id)
-            .put("points", JSONArray(points.map { it.name }))
+
+    fun award(team: Team): MatchState? {
+        val current = state ?: return null
+        if (current.winner != null) return current
+        val nextPoints = points + team
+        val next = Scoring.award(current, team)
+        persist(checkNotNull(initial), nextPoints)
+        points = nextPoints
+        state = next
+        return next
+    }
+
+    fun undo(): MatchState? {
+        if (points.isEmpty()) return state
+        val nextPoints = points.dropLast(1)
+        val next = nextPoints.fold(checkNotNull(initial), Scoring::award)
+        persist(checkNotNull(initial), nextPoints)
+        points = nextPoints
+        state = next
+        return next
+    }
+
+    private fun persist(match: MatchState, log: List<Team>) {
+        val value = JSONObject().put("schemaVersion", 2).put("id", match.id)
+            .put("rules", writeRules(match.rules)).put("firstServer", match.firstServer.name)
+            .put("points", JSONArray(log.map { it.name }))
         check(preferences.edit().putString("current", value.toString()).commit()) {
             "Could not save match"
         }
     }
+
+    private fun writeRules(rules: MatchRules) = JSONObject()
+        .put("gamesToWinSet", rules.gamesToWinSet)
+        .put("goldenPoint", rules.goldenPoint)
+        .put("tieBreakEnabled", rules.tieBreakEnabled)
+
+    private fun readRules(value: JSONObject) = MatchRules(
+        gamesToWinSet = value.optInt("gamesToWinSet", 6),
+        goldenPoint = value.optBoolean("goldenPoint", false),
+        tieBreakEnabled = value.optBoolean("tieBreakEnabled", true),
+    )
 }

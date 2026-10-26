@@ -7,20 +7,40 @@ enum class Team { A, B;
     fun opponent() = if (this == A) B else A
 }
 
+/** Order of service alternates teams and then partners. */
+enum class Player(val team: Team) {
+    ME(Team.A), OPPONENT_1(Team.B), PARTNER(Team.A), OPPONENT_2(Team.B),
+}
+
+data class MatchRules(
+    val gamesToWinSet: Int = 6,
+    val goldenPoint: Boolean = false,
+    val tieBreakEnabled: Boolean = true,
+) {
+    init { require(gamesToWinSet in 1..12) }
+}
+
 data class SetScore(val a: Int, val b: Int)
 
 data class MatchState(
     val id: String = UUID.randomUUID().toString(),
+    val rules: MatchRules = MatchRules(),
+    val firstServer: Player = Player.ME,
     val pointsA: Int = 0,
     val pointsB: Int = 0,
     val gamesA: Int = 0,
     val gamesB: Int = 0,
     val completedSets: List<SetScore> = emptyList(),
-    val server: Team = Team.A,
-    val tieBreakFirstServer: Team = Team.A,
+    val servingTurn: Int = 0,
+    val tieBreakFirstServingTurn: Int = 0,
     val winner: Team? = null,
 ) {
-    val isTieBreak: Boolean get() = gamesA == 6 && gamesB == 6
+    val isTieBreak: Boolean get() = rules.tieBreakEnabled &&
+        gamesA == rules.gamesToWinSet && gamesB == rules.gamesToWinSet
+    val servingPlayer: Player get() = Player.entries[(firstServer.ordinal + servingTurn) % 4]
+    val server: Team get() = servingPlayer.team
+    // Right-hand service court from the server's perspective; mirrored for the top team.
+    val servingFromRight: Boolean get() = (pointsA + pointsB) % 2 == 0
     fun sets(team: Team): Int = completedSets.count {
         if (team == Team.A) it.a > it.b else it.b > it.a
     }
@@ -33,7 +53,7 @@ data class MatchState(
     }
 }
 
-/** Best of three sets, advantage games, seven-point tie-break at 6–6. */
+/** Best of three sets. Rules are fixed when a match starts and retained during replay. */
 object Scoring {
     fun award(state: MatchState, team: Team): MatchState {
         if (state.winner != null) return state
@@ -42,26 +62,29 @@ object Scoring {
         val updated = state.copy(pointsA = a, pointsB = b)
         if (state.isTieBreak) {
             if (maxOf(a, b) >= 7 && abs(a - b) >= 2) {
-                return finishSet(updated, if (team == Team.A) 7 else 6,
-                    if (team == Team.B) 7 else 6, state.tieBreakFirstServer.opponent())
+                val target = state.rules.gamesToWinSet
+                return finishSet(updated, target + if (team == Team.A) 1 else 0,
+                    target + if (team == Team.B) 1 else 0,
+                    (state.tieBreakFirstServingTurn + 1) % 4)
             }
-            val nextServer = if (((a + b + 1) / 2) % 2 == 1)
-                state.tieBreakFirstServer.opponent() else state.tieBreakFirstServer
-            return updated.copy(server = nextServer)
+            return updated.copy(servingTurn =
+                (state.tieBreakFirstServingTurn + (a + b + 1) / 2) % 4)
         }
-        if (maxOf(a, b) < 4 || abs(a - b) < 2) return updated
+        if (maxOf(a, b) < 4 || (!state.rules.goldenPoint && abs(a - b) < 2)) return updated
         val ga = state.gamesA + if (team == Team.A) 1 else 0
         val gb = state.gamesB + if (team == Team.B) 1 else 0
-        val next = state.server.opponent()
-        if (maxOf(ga, gb) >= 6 && abs(ga - gb) >= 2) return finishSet(updated, ga, gb, next)
+        val next = (state.servingTurn + 1) % 4
+        if (maxOf(ga, gb) >= state.rules.gamesToWinSet && abs(ga - gb) >= 2) {
+            return finishSet(updated, ga, gb, next)
+        }
         return updated.copy(pointsA = 0, pointsB = 0, gamesA = ga, gamesB = gb,
-            server = next, tieBreakFirstServer = next)
+            servingTurn = next, tieBreakFirstServingTurn = next)
     }
 
-    private fun finishSet(state: MatchState, a: Int, b: Int, nextServer: Team): MatchState {
+    private fun finishSet(state: MatchState, a: Int, b: Int, nextTurn: Int): MatchState {
         val next = state.copy(pointsA = 0, pointsB = 0, gamesA = 0, gamesB = 0,
-            completedSets = state.completedSets + SetScore(a, b), server = nextServer,
-            tieBreakFirstServer = nextServer)
+            completedSets = state.completedSets + SetScore(a, b), servingTurn = nextTurn,
+            tieBreakFirstServingTurn = nextTurn)
         return next.copy(winner = Team.entries.firstOrNull { next.sets(it) == 2 })
     }
 }
