@@ -35,6 +35,14 @@ class MatchRepository(context: Context) {
 
     fun current(): MatchState? = state
     fun settings(): MatchRules = defaults
+    fun launchWorkoutOnStart(): Boolean = preferences.getBoolean("launchWorkoutOnStart", true)
+
+    fun saveLaunchWorkoutOnStart(enabled: Boolean) {
+        check(preferences.edit().putBoolean("launchWorkoutOnStart", enabled).commit()) {
+            "Could not save workout launch setting"
+        }
+    }
+
     fun canUndo(): Boolean = points.isNotEmpty()
     fun isSessionActive(): Boolean = state?.let {
         it.winner == null && preferences.getString("sessionMatchId", null) == it.id

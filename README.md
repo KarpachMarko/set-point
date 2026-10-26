@@ -57,6 +57,19 @@ the match immediately and replaces the saved match; there is no separate confirm
 Use the watch's Back action to leave setup. Back from the court, or
 the Menu target at its top, returns to the menu without losing progress.
 
+By default, selecting either serving team also launches Samsung Health's
+`com.samsung.android.wear.shealth.intent.action.START_WORKOUT` action, scoped to the
+`com.samsung.android.wear.shealth` package, with the string extra `exercise.type=TENNIS`.
+That parameter matches the installed Samsung Health handler's exercise enum contract.
+This is an undocumented, version-dependent integration.
+The match is saved before launching Samsung Health. Return to Set Point to score; Continue,
+undo, and reopening the app do not launch the action again. If the action is unavailable
+or denied, a message appears and the match remains playable.
+
+**Settings → Launch workout** controls this launch and is **ON** by default. Turn it off
+to start new games directly on the court without opening Samsung Health. The preference
+saves automatically and is retained after restarting the app.
+
 Settings save automatically after each change; use the watch's Back action to return to
 the menu. They apply to new matches: choose 1–12 games to win a set, advantage or golden point
 (the next point at 40–40 wins), and whether to play a tie-break at the configured games

@@ -45,6 +45,7 @@ internal fun SetPointApp(
     notificationsAllowed: Boolean,
     onEnableNotifications: () -> Unit,
     onResumeRequestHandled: () -> Unit,
+    onNewMatchStarted: () -> Unit,
 ) {
     var screen by rememberSaveable {
         mutableStateOf(if (state.sessionActive) Screen.COURT else Screen.MENU)
@@ -68,32 +69,51 @@ internal fun SetPointApp(
             }
         }
     }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier
+        .fillMaxSize()
+        .background(Color.Black)) {
         if (ambient.active) {
             AmbientScoreScreen(state.match.takeIf { state.sessionActive }, ambient, is24Hour)
         } else when (screen) {
-            Screen.MENU -> MenuScreen(state,
+            Screen.MENU -> MenuScreen(
+                state,
                 onNew = { screen = Screen.NEW_MATCH },
                 onContinue = { model.resumeSession { screen = Screen.COURT } },
                 onSettings = { screen = Screen.SETTINGS })
-            Screen.SETTINGS -> SettingsScreen(state.settings, state.busy,
+
+            Screen.SETTINGS -> SettingsScreen(
+                state.settings, state.busy,
                 onChange = model::updateSettings, notificationsAllowed = notificationsAllowed,
-                onEnableNotifications = onEnableNotifications)
-            Screen.NEW_MATCH -> NewMatchScreen(state,
-                onStart = { model.start(it) { screen = Screen.COURT } })
+                onEnableNotifications = onEnableNotifications,
+                launchWorkoutOnStart = state.launchWorkoutOnStart,
+                onLaunchWorkoutChange = model::updateLaunchWorkoutOnStart
+            )
+
+            Screen.NEW_MATCH -> NewMatchScreen(
+                state,
+                onStart = {
+                    model.start(it) {
+                        screen = Screen.COURT
+                        onNewMatchStarted()
+                    }
+                })
+
             Screen.COURT -> state.match?.let { match ->
                 if (match.winner != null) {
-                    MatchFinishedScreen(match, state.busy, state.canUndo,
+                    MatchFinishedScreen(
+                        match, state.busy, state.canUndo,
                         onUndo = model::undo,
                         onNew = { screen = Screen.NEW_MATCH },
                         onHistory = { screen = Screen.HISTORY })
                 } else {
-                    CourtScreen(match, state.busy, state.canUndo,
+                    CourtScreen(
+                        match, state.busy, state.canUndo,
                         onAward = model::award, onUndo = model::undo,
                         onHistory = { screen = Screen.HISTORY },
                         onMenu = { model.pauseSession { screen = Screen.MENU } })
                 }
             }
+
             Screen.HISTORY -> state.match?.let {
                 SetHistoryScreen(it) { screen = Screen.COURT }
             }
@@ -114,7 +134,9 @@ internal fun ScrollPage(content: @Composable ColumnScope.() -> Unit) {
     val focusRequester = remember { FocusRequester() }
     val rotaryBehavior = RotaryScrollableDefaults.behavior(scrollableState = scrollState)
     Column(
-        Modifier.fillMaxSize().background(Color.Black)
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
             .requestFocusOnHierarchyActive()
             .rotaryScrollable(behavior = rotaryBehavior, focusRequester = focusRequester)
             .verticalScroll(scrollState)
@@ -127,26 +149,54 @@ internal fun ScrollPage(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 internal fun PageTitle(title: String) {
-    Text(title, color = Lime, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center)
+    Text(
+        title, color = Lime, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center
+    )
 }
 
 @Composable
 internal fun MenuAction(label: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-        Text(label, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @Composable
-private fun MenuScreen(state: AppState, onNew: () -> Unit, onContinue: () -> Unit, onSettings: () -> Unit) {
+private fun MenuScreen(
+    state: AppState,
+    onNew: () -> Unit,
+    onContinue: () -> Unit,
+    onSettings: () -> Unit
+) {
     ScrollPage {
         PageTitle("SET POINT")
         Text("PADEL · ${state.settings.matchLengthLabel()}", color = Muted, fontSize = 10.sp)
         state.match?.let { match ->
-            MenuAction(if (match.winner == null) "Continue game" else "View last game", !state.busy, onContinue)
-            Text("My ${match.gamesA} : ${match.gamesB} Opp · Sets ${match.sets(Team.A)} : ${match.sets(Team.B)}",
-                color = Muted, fontSize = 10.sp)
+            MenuAction(
+                if (match.winner == null) "Continue game" else "View last game",
+                !state.busy,
+                onContinue
+            )
+            Text(
+                "My ${match.gamesA} : ${match.gamesB} Opp · Sets ${match.sets(Team.A)} : ${
+                    match.sets(
+                        Team.B
+                    )
+                }",
+                color = Muted, fontSize = 10.sp
+            )
         }
         MenuAction("Start new game", !state.busy, onNew)
         MenuAction("Settings", !state.busy, onSettings)
@@ -160,6 +210,8 @@ private fun SettingsScreen(
     onChange: (MatchRules) -> Unit,
     notificationsAllowed: Boolean,
     onEnableNotifications: () -> Unit,
+    launchWorkoutOnStart: Boolean,
+    onLaunchWorkoutChange: (Boolean) -> Unit,
 ) {
     // Keep the finite target when toggling endless mode within this visit.
     var lastFiniteSets by rememberSaveable { mutableIntStateOf(rules.setsToWinMatch ?: 2) }
@@ -169,33 +221,66 @@ private fun SettingsScreen(
     ScrollPage {
         PageTitle("Settings")
         if (!notificationsAllowed) {
-            MenuAction("Allow match notifications", enabled = !busy, onClick = onEnableNotifications)
-            Text("Keeps your match available after sleep", color = Muted, fontSize = 11.sp,
-                textAlign = TextAlign.Center)
+            MenuAction(
+                "Allow match notifications",
+                enabled = !busy,
+                onClick = onEnableNotifications
+            )
+            Text(
+                "Keeps your match available after sleep", color = Muted, fontSize = 11.sp,
+                textAlign = TextAlign.Center
+            )
         }
         Text("FOR NEW GAMES", fontSize = 10.sp, color = Muted)
         Text("Games to win a set", fontSize = 13.sp)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            TextButton(onClick = { onChange(rules.copy(gamesToWinSet = games - 1)) }, enabled = !busy && games > 1,
-                modifier = Modifier.size(48.dp).semantics { contentDescription = "Decrease games to win" }) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            TextButton(
+                onClick = { onChange(rules.copy(gamesToWinSet = games - 1)) },
+                enabled = !busy && games > 1,
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics { contentDescription = "Decrease games to win" }) {
                 Text("−", fontSize = 24.sp)
             }
             Text("$games", color = Lime, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-            TextButton(onClick = { onChange(rules.copy(gamesToWinSet = games + 1)) }, enabled = !busy && games < 12,
-                modifier = Modifier.size(48.dp).semantics { contentDescription = "Increase games to win" }) {
+            TextButton(
+                onClick = { onChange(rules.copy(gamesToWinSet = games + 1)) },
+                enabled = !busy && games < 12,
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics { contentDescription = "Increase games to win" }) {
                 Text("+", fontSize = 24.sp)
             }
         }
         Text("Win by two games", color = Muted, fontSize = 11.sp)
         Text("Sets to win match", fontSize = 13.sp)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            TextButton(onClick = { onChange(rules.copy(setsToWinMatch = sets - 1)) }, enabled = !busy && !endless && sets > 1,
-                modifier = Modifier.size(48.dp).semantics { contentDescription = "Decrease sets to win" }) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            TextButton(
+                onClick = { onChange(rules.copy(setsToWinMatch = sets - 1)) },
+                enabled = !busy && !endless && sets > 1,
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics { contentDescription = "Decrease sets to win" }) {
                 Text("−", fontSize = 24.sp)
             }
-            Text(if (endless) "∞" else "$sets", color = Lime, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-            TextButton(onClick = { onChange(rules.copy(setsToWinMatch = sets + 1)) }, enabled = !busy && !endless && sets < 12,
-                modifier = Modifier.size(48.dp).semantics { contentDescription = "Increase sets to win" }) {
+            Text(
+                if (endless) "∞" else "$sets",
+                color = Lime,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Bold
+            )
+            TextButton(
+                onClick = { onChange(rules.copy(setsToWinMatch = sets + 1)) },
+                enabled = !busy && !endless && sets < 12,
+                modifier = Modifier
+                    .size(48.dp)
+                    .semantics { contentDescription = "Increase sets to win" }) {
                 Text("+", fontSize = 24.sp)
             }
         }
@@ -206,21 +291,45 @@ private fun SettingsScreen(
         RuleToggle("Golden point", "At 40–40, next point wins", rules.goldenPoint, !busy) {
             onChange(rules.copy(goldenPoint = !rules.goldenPoint))
         }
-        RuleToggle("Tie-break", "At $games–$games · first to 7, by 2", rules.tieBreakEnabled, !busy) {
+        RuleToggle(
+            "Tie-break",
+            "At $games–$games · first to 7, by 2",
+            rules.tieBreakEnabled,
+            !busy
+        ) {
             onChange(rules.copy(tieBreakEnabled = !rules.tieBreakEnabled))
         }
+        RuleToggle(
+            "Launch workout", "Start Samsung Health Tennis with a new game",
+            launchWorkoutOnStart, !busy
+        ) { onLaunchWorkoutChange(!launchWorkoutOnStart) }
     }
 }
 
 @Composable
-private fun RuleToggle(label: String, detail: String, checked: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(16.dp))
-        .toggleable(value = checked, enabled = enabled,
-            role = androidx.compose.ui.semantics.Role.Switch, onValueChange = { onClick() })
-        .padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+private fun RuleToggle(
+    label: String,
+    detail: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Surface, RoundedCornerShape(16.dp))
+            .toggleable(
+                value = checked, enabled = enabled,
+                role = androidx.compose.ui.semantics.Role.Switch, onValueChange = { onClick() })
+            .padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, fontSize = 13.sp)
-            Text(if (checked) "ON" else "OFF", color = if (checked) Lime else Muted, fontSize = 11.sp)
+            Text(
+                if (checked) "ON" else "OFF",
+                color = if (checked) Lime else Muted,
+                fontSize = 11.sp
+            )
         }
         Text(detail, color = Muted, fontSize = 10.sp)
     }
@@ -235,8 +344,10 @@ private fun NewMatchScreen(state: AppState, onStart: (Team) -> Unit) {
         MenuAction("Opponents", enabled = !state.busy) { onStart(Team.B) }
         Text(state.settings.matchLengthLabel(), color = Muted, fontSize = 11.sp)
         if (state.match?.winner == null && state.match != null) {
-            Text("Selecting a team replaces your current game.", color = Color(0xFFFFC58C),
-                fontSize = 11.sp, textAlign = TextAlign.Center)
+            Text(
+                "Selecting a team replaces your current game.", color = Color(0xFFFFC58C),
+                fontSize = 11.sp, textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -257,8 +368,10 @@ private fun MatchFinishedScreen(
     val winner = checkNotNull(match.winner)
     ScrollPage {
         PageTitle(if (winner == Team.A) "My team wins!" else "Opponents win!")
-        Text("${match.sets(winner)} : ${match.sets(winner.opponent())} in sets",
-            color = Color.White, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "${match.sets(winner)} : ${match.sets(winner.opponent())} in sets",
+            color = Color.White, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold
+        )
         MenuAction("Undo last point", enabled = canUndo && !busy, onClick = onUndo)
         MenuAction("Start new game", enabled = !busy, onClick = onNew)
         TextButton(onClick = onHistory, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
@@ -273,21 +386,40 @@ private fun SetHistoryScreen(match: MatchState, onBack: () -> Unit) {
         PageTitle("Set results")
         Text("MY TEAM  :  OPPONENTS", fontSize = 10.sp, color = Muted)
         if (match.completedSets.isEmpty()) {
-            Text("No completed sets yet", color = Muted, textAlign = TextAlign.Center, fontSize = 12.sp)
+            Text(
+                "No completed sets yet",
+                color = Muted,
+                textAlign = TextAlign.Center,
+                fontSize = 12.sp
+            )
         }
         match.completedSets.forEachIndexed { index, score ->
-            Column(Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(16.dp)).padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Surface, RoundedCornerShape(16.dp))
+                    .padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text("SET ${index + 1}", fontSize = 10.sp, color = Muted)
-                Text("${score.a} : ${score.b}", fontSize = 24.sp, color = Lime, fontWeight = FontWeight.Bold)
+                Text(
+                    "${score.a} : ${score.b}",
+                    fontSize = 24.sp,
+                    color = Lime,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
         if (match.winner == null) {
-            Text("Set ${match.completedSets.size + 1} · ${match.gamesA} : ${match.gamesB} in progress",
-                fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center)
+            Text(
+                "Set ${match.completedSets.size + 1} · ${match.gamesA} : ${match.gamesB} in progress",
+                fontSize = 12.sp, color = Muted, textAlign = TextAlign.Center
+            )
         } else {
-            Text(if (match.winner == Team.A) "My team wins!" else "Opponents win",
-                color = Lime, fontSize = 14.sp)
+            Text(
+                if (match.winner == Team.A) "My team wins!" else "Opponents win",
+                color = Lime, fontSize = 14.sp
+            )
         }
         MenuAction("Back to court", onClick = onBack)
     }

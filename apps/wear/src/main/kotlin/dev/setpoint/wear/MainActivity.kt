@@ -1,12 +1,14 @@
 package dev.setpoint.wear
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateFormat
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -28,6 +30,8 @@ class MainActivity : ComponentActivity() {
     private var ambient by mutableStateOf(AmbientState())
     private var notificationsAllowed by mutableStateOf(false)
     private var resumeRequest by mutableIntStateOf(0)
+    private var isResumed by mutableStateOf(false)
+    private var launchingWorkout by mutableStateOf(false)
     private val sessionPreferences by lazy { getSharedPreferences("session_ui", MODE_PRIVATE) }
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         refreshNotifications()
@@ -56,8 +60,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 val state by model.state.collectAsStateWithLifecycle()
-                LaunchedEffect(state.sessionActive) {
-                    if (state.sessionActive && Build.VERSION.SDK_INT >= 33 &&
+                LaunchedEffect(state.sessionActive, isResumed, launchingWorkout) {
+                    if (state.sessionActive && isResumed && !launchingWorkout && Build.VERSION.SDK_INT >= 33 &&
                         ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) !=
                         PackageManager.PERMISSION_GRANTED &&
                         !sessionPreferences.getBoolean("notificationPermissionRequested", false)) {
@@ -66,7 +70,8 @@ class MainActivity : ComponentActivity() {
                 }
                 SetPointApp(state, model, ambient, DateFormat.is24HourFormat(this), resumeRequest,
                     notificationsAllowed, onEnableNotifications = ::enableMatchNotifications,
-                    onResumeRequestHandled = { resumeRequest = 0 })
+                    onResumeRequestHandled = { resumeRequest = 0 },
+                    onNewMatchStarted = ::launchSamsungWorkout)
             }
         }
     }
@@ -86,7 +91,35 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        launchingWorkout = false
+        isResumed = true
         if (::model.isInitialized) refreshNotifications()
+    }
+
+    override fun onPause() {
+        isResumed = false
+        super.onPause()
+    }
+
+    private fun launchSamsungWorkout() {
+        if (!model.state.value.launchWorkoutOnStart) return
+        // The installed Samsung handler reads this string and calls ExerciseType.valueOf().
+        // Without it, Samsung opens an empty screen and logs "invalid type name: null".
+        launchingWorkout = true
+        try {
+            Log.i("SetPointWorkout", "Requesting Samsung Health workout: exercise.type=TENNIS")
+            startActivity(Intent("com.samsung.android.wear.shealth.intent.action.START_WORKOUT")
+                .setPackage("com.samsung.android.wear.shealth")
+                .putExtra("exercise.type", "TENNIS"))
+        } catch (error: ActivityNotFoundException) {
+            launchingWorkout = false
+            Log.w("SetPointWorkout", "Samsung Health workout action is unavailable", error)
+            Toast.makeText(this, "Samsung Health workout action is unavailable.", Toast.LENGTH_LONG).show()
+        } catch (error: SecurityException) {
+            launchingWorkout = false
+            Log.w("SetPointWorkout", "Samsung Health rejected the workout action", error)
+            Toast.makeText(this, "Samsung Health did not allow starting a workout.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun refreshNotifications() {

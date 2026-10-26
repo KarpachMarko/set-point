@@ -18,6 +18,7 @@ data class AppState(
     val match: MatchState?,
     val settings: MatchRules,
     val canUndo: Boolean,
+    val launchWorkoutOnStart: Boolean = true,
     val sessionActive: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
@@ -32,6 +33,7 @@ class MatchViewModel(application: Application) : AndroidViewModel(application) {
     init { refreshSessionNotification() }
 
     private fun snapshot() = AppState(repository.current(), repository.settings(), repository.canUndo(),
+        launchWorkoutOnStart = repository.launchWorkoutOnStart(),
         sessionActive = repository.isSessionActive())
 
     fun notificationsAllowed() = notification.notificationsAllowed()
@@ -44,6 +46,7 @@ class MatchViewModel(application: Application) : AndroidViewModel(application) {
     fun resumeSession(onResumed: () -> Unit) = act(onResumed) { resumeSession() }
     fun pauseSession(onPaused: () -> Unit) = act(onPaused) { pauseSession() }
     fun updateSettings(rules: MatchRules) = act { saveSettings(rules) }
+    fun updateLaunchWorkoutOnStart(enabled: Boolean) = act { saveLaunchWorkoutOnStart(enabled) }
     fun award(team: Team) = act { award(team) }
     fun undo() = act { undo() }
     fun dismissError() { mutableState.value = mutableState.value.copy(error = null) }

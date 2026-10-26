@@ -40,6 +40,11 @@ New-game setup starts immediately from one of two serving-team buttons. The repo
 maps that team to the existing first-server representation, retaining compatibility with
 saved player-based logs. The UI and service-ball accessibility descriptions expose teams.
 
+The workout-launch preference is stored separately from scoring rules and defaults to on
+when absent, including for existing installations. Settings autosave it through the same
+ViewModel action queue. After a new match is saved, the activity checks the latest preference
+before launching Samsung Health Tennis; turning it off leaves the user on the court.
+
 The court route displays the result screen whenever the persisted match has a winner.
 This also handles re-opening completed matches. Undo removes the winning point and
 switches back to the court after saving; a new game uses the serving-team setup.

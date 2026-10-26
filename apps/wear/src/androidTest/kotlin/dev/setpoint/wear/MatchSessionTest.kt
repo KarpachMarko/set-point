@@ -118,4 +118,29 @@ class MatchSessionTest {
         assertEquals(match, restored.current())
         assertNull(restored.settings().setsToWinMatch)
     }
+
+    @Test fun workoutLaunchDefaultsOnForExistingSettingsAndRemembersChanges() {
+        // Existing installations have scoring defaults but no workout-launch preference.
+        MatchRepository(context).saveSettings(MatchRules(goldenPoint = true))
+        val repository = MatchRepository(context)
+        assertTrue(repository.launchWorkoutOnStart())
+        repository.saveLaunchWorkoutOnStart(false)
+        assertFalse(MatchRepository(context).launchWorkoutOnStart())
+        repository.saveLaunchWorkoutOnStart(true)
+        assertTrue(MatchRepository(context).launchWorkoutOnStart())
+    }
+
+    @Test fun workoutPreferenceStaysSeparateFromMatchRulesAndOtherSettings() {
+        val repository = MatchRepository(context)
+        val match = repository.start(Team.A)
+        repository.saveLaunchWorkoutOnStart(false)
+        repository.saveSettings(MatchRules(gamesToWinSet = 4, setsToWinMatch = null))
+        val restored = MatchRepository(context)
+        assertFalse(restored.launchWorkoutOnStart())
+        assertEquals(match, restored.current())
+        assertTrue(restored.isSessionActive())
+        restored.start(Team.B)
+        assertFalse(MatchRepository(context).launchWorkoutOnStart())
+        assertNull(restored.current()?.rules?.setsToWinMatch)
+    }
 }
