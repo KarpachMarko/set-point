@@ -50,34 +50,47 @@ The pairing port and connection port are usually different. No phone companion i
 
 The main menu offers **Start new game**, **Continue game** when a match is saved, and
 **Settings**. A finished match can be opened with **View last game**. Starting a new game
-lets you select the first server and replaces the saved match. Back from the court, or
+opens two buttons for **My team** or **Opponents** to serve first. Tapping either starts
+the match immediately and replaces the saved match; there is no separate confirmation.
+Use the watch's Back action to leave setup. Back from the court, or
 the Menu target at its top, returns to the menu without losing progress.
 
-Settings apply to new matches: choose 1–12 games to win a set, advantage or golden point
+Settings save automatically after each change; use the watch's Back action to return to
+the menu. They apply to new matches: choose 1–12 games to win a set, advantage or golden point
 (the next point at 40–40 wins), and whether to play a tie-break at the configured games
 target. Sets require a two-game lead; tie-breaks require seven points with a two-point
-lead. Matches are best of three sets. Resumed matches retain their original rules.
+lead. Choose 1–12 sets to win a match (two by default), or enable **Endless mode** to keep
+playing sets without a match winner. Resumed matches retain their original rules.
+
+When a team reaches the sets-to-win target, a result screen names the winning team and
+shows the final set score with the winner's score first. **Undo last point** reopens the
+match before the winning point; **Start new game** opens serving-team selection. Set
+results remain available from this screen, including after restarting the app.
 
 The court has four touch areas, with opponents above and my team below. Point scores
 sit over each team's half, and the middle badge shows games in **opponents : my team**
-order. Tap either quarter of a team's half to highlight that team and its score; tap the
+order. The court shows scores and the service ball without team labels or gesture hints.
+Tap either quarter of a team's half to highlight that team and its score; tap the
 same team again to confirm the point. Tapping the other team changes the selection.
 Selections expire after 3.5 seconds and clear when the app leaves the foreground.
 
 Rotate the bezel clockwise to select my team, or counterclockwise to select opponents.
 Continue in that direction to fill the confirmation ring and award one point. Reversing
 direction selects the other team and resets progress. A short cooldown after confirmation
-guards against extra points from continued rotation. The bezel also scrolls menus.
+guards against extra points from continued rotation. Menus use Wear OS's animated rotary
+scrolling, which adapts to coarse bezel detents (such as Galaxy Watch Classic) and finer
+crown input, with momentum and scrolling haptics.
 
 The ball marks the current service corner, alternating sides after every point. Service
-rotates between all four players, including the one-point, then two-point rotation in a
-tie-break. The ball's accessibility description identifies the player serving. Long-press
+alternates between teams, including the one-point, then two-point rotation in a
+tie-break. The ball's accessibility description identifies the serving team. Long-press
 any court quarter to undo the last point, including set and match wins. Hold the middle
 badge to open cards with previous sets' results; a normal tap also opens them.
 
 The match UUID, rules, first server, and point log are saved after every confirmed action;
 undo works after restarting the app. Existing version 1 matches retain the original
-six-game, advantage, tie-break rules. Only the latest match is retained.
+six-game, advantage, tie-break rules; version 1 and 2 matches retain the two-set match
+target. Only the latest match is retained.
 
 `dev.setpoint.wear` is a provisional application ID; choose your own namespace before
 publishing. Localization, ambient behavior, workout recording, and a match archive remain

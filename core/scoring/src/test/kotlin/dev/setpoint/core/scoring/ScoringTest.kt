@@ -147,4 +147,66 @@ class ScoringTest {
             assertThrows(IllegalArgumentException::class.java) { MatchRules(gamesToWinSet = games) }
         }
     }
+
+    @Test fun `one set match finishes after first set including a tie break`() {
+        val rules = MatchRules(setsToWinMatch = 1)
+        val regular = points(MatchState(rules = rules), Team.B, 24)
+        assertEquals(Team.B, regular.winner)
+        assertEquals(listOf(SetScore(0, 6)), regular.completedSets)
+        val tieBreak = points(MatchState(rules = rules, gamesA = 6, gamesB = 6), Team.A, 7)
+        assertEquals(Team.A, tieBreak.winner)
+        assertEquals(listOf(SetScore(7, 6)), tieBreak.completedSets)
+    }
+
+    @Test fun `custom match target counts sets won rather than total sets played`() {
+        val start = MatchState(rules = MatchRules(gamesToWinSet = 2, setsToWinMatch = 3))
+        val twoSets = points(start, Team.A, 16)
+        assertEquals(2, twoSets.sets(Team.A))
+        assertNull(twoSets.winner)
+        val fourSets = points(twoSets, Team.B, 16)
+        assertEquals(4, fourSets.completedSets.size)
+        assertNull(fourSets.winner)
+        val final = points(fourSets, Team.B, 8)
+        assertEquals(Team.B, final.winner)
+        assertEquals(3, final.sets(Team.B))
+        assertEquals(final, Scoring.award(final, Team.A))
+    }
+
+    @Test fun `endless mode continues scoring and rotating service after many sets`() {
+        val start = MatchState(rules = MatchRules(gamesToWinSet = 2, setsToWinMatch = null))
+        val sixSets = points(start, Team.A, 48)
+        assertEquals(6, sixSets.sets(Team.A))
+        assertNull(sixSets.winner)
+        assertEquals(Player.ME, sixSets.servingPlayer)
+        val next = Scoring.award(sixSets, Team.B)
+        assertEquals("15", next.pointLabel(Team.B))
+        assertNull(next.winner)
+        assertEquals(start.rules, next.rules)
+    }
+
+    @Test fun `endless tie break completes set without completing match`() {
+        val start = MatchState(rules = MatchRules(setsToWinMatch = null),
+            completedSets = List(3) { SetScore(6, 0) }, gamesA = 6, gamesB = 6)
+        val result = points(start, Team.A, 7)
+        assertEquals(4, result.sets(Team.A))
+        assertNull(result.winner)
+        assertFalse(result.isTieBreak)
+        assertEquals(Player.OPPONENT_1, result.servingPlayer)
+    }
+
+    @Test fun `undo replay reopens match with custom winning target`() {
+        val start = MatchState(rules = MatchRules(gamesToWinSet = 2, setsToWinMatch = 3))
+        val log = List(24) { Team.A }
+        assertEquals(Team.A, log.fold(start, Scoring::award).winner)
+        val undone = log.dropLast(1).fold(start, Scoring::award)
+        assertNull(undone.winner)
+        assertEquals(2, undone.sets(Team.A))
+        assertEquals("40", undone.pointLabel(Team.A))
+    }
+
+    @Test fun `invalid match targets are rejected`() {
+        for (sets in listOf(0, -1, 13)) {
+            assertThrows(IllegalArgumentException::class.java) { MatchRules(setsToWinMatch = sets) }
+        }
+    }
 }

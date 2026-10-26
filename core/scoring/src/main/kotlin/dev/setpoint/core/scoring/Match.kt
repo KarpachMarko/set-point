@@ -16,8 +16,13 @@ data class MatchRules(
     val gamesToWinSet: Int = 6,
     val goldenPoint: Boolean = false,
     val tieBreakEnabled: Boolean = true,
+    /** Null keeps playing sets without declaring a match winner. */
+    val setsToWinMatch: Int? = 2,
 ) {
-    init { require(gamesToWinSet in 1..12) }
+    init {
+        require(gamesToWinSet in 1..12)
+        require(setsToWinMatch == null || setsToWinMatch in 1..12)
+    }
 }
 
 data class SetScore(val a: Int, val b: Int)
@@ -53,7 +58,7 @@ data class MatchState(
     }
 }
 
-/** Best of three sets. Rules are fixed when a match starts and retained during replay. */
+/** Rules are fixed when a match starts and retained during replay. */
 object Scoring {
     fun award(state: MatchState, team: Team): MatchState {
         if (state.winner != null) return state
@@ -85,6 +90,8 @@ object Scoring {
         val next = state.copy(pointsA = 0, pointsB = 0, gamesA = 0, gamesB = 0,
             completedSets = state.completedSets + SetScore(a, b), servingTurn = nextTurn,
             tieBreakFirstServingTurn = nextTurn)
-        return next.copy(winner = Team.entries.firstOrNull { next.sets(it) == 2 })
+        return next.copy(winner = state.rules.setsToWinMatch?.let { target ->
+            Team.entries.firstOrNull { next.sets(it) >= target }
+        })
     }
 }

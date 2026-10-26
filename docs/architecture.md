@@ -7,10 +7,17 @@ Keep screens, input handling, haptics, and watch lifecycle in the Wear app. Keep
 rules independent of Android so another UI can reuse them.
 
 The repository stores the current match UUID, immutable rules, first server, and ordered
-point log in private SharedPreferences (schema version 2). Replaying the log reconstructs
+point log in private SharedPreferences (schema version 3). Replaying the log reconstructs
 state, all four players' service turns, and undo. Version 1 logs replay with the original
 default rules and first server. Default settings are stored separately and only apply to
-new matches. A fresh install has no current match until the user starts one.
+new matches. Version 3 rules add `setsToWinMatch`: an explicit JSON null means endless
+mode; an absent value in version 1/2 data defaults to two. A fresh install has no current
+match until the user starts one.
+
+Settings controls save each change through the ViewModel immediately and stay on the
+settings page. Their values come from the persisted settings state, with inputs gated
+during a write. Back can return to the menu while a write finishes; saving does not depend
+on the settings composable remaining on screen. Active matches retain their own rules.
 
 Writes run off the UI thread and complete before publishing the new state. The ViewModel
 gates actions while a write is pending; the repository updates its in-memory state only
@@ -23,6 +30,20 @@ The Wear UI owns navigation, haptics, selection timeout, and bezel cooldown. The
 direction changes, and shares a selection between touch and bezel input. Selection is
 transient and cleared when leaving the court or pausing the app; only confirmed points
 are persisted. Scoring and input transitions have local JVM regression tests.
+
+Menu pages use Wear Compose Foundation's `rotaryScrollable` with its default scroll
+behavior, which animates accumulated rotary deltas and adapts to low-resolution bezels
+and high-resolution crowns. It shares the touch scroll state and handles momentum and
+haptics; focus follows the active page using `requestFocusOnHierarchyActive`.
+
+New-game setup starts immediately from one of two serving-team buttons. The repository
+maps that team to the existing first-server representation, retaining compatibility with
+saved player-based logs. The UI and service-ball accessibility descriptions expose teams.
+
+The court route displays the result screen whenever the persisted match has a winner.
+This also handles re-opening completed matches. Undo removes the winning point and
+switches back to the court after saving; a new game uses the serving-team setup.
+Endless matches still record set results and serving order but never declare a winner.
 
 ## Future companion
 

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import dev.setpoint.core.data.MatchRepository
 import dev.setpoint.core.scoring.MatchRules
 import dev.setpoint.core.scoring.MatchState
-import dev.setpoint.core.scoring.Player
 import dev.setpoint.core.scoring.Team
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -30,8 +29,8 @@ class MatchViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun snapshot() = AppState(repository.current(), repository.settings(), repository.canUndo())
 
-    fun start(firstServer: Player, onStarted: () -> Unit) = act(onStarted) { start(firstServer) }
-    fun saveSettings(rules: MatchRules, onSaved: () -> Unit) = act(onSaved) { saveSettings(rules) }
+    fun start(servingTeam: Team, onStarted: () -> Unit) = act(onStarted) { start(servingTeam) }
+    fun updateSettings(rules: MatchRules) = act { saveSettings(rules) }
     fun award(team: Team) = act { award(team) }
     fun undo() = act { undo() }
     fun dismissError() { mutableState.value = mutableState.value.copy(error = null) }

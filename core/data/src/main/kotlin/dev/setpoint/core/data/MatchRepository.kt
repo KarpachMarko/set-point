@@ -44,8 +44,9 @@ class MatchRepository(context: Context) {
         defaults = rules
     }
 
-    fun start(firstServer: Player): MatchState {
-        val next = MatchState(rules = defaults, firstServer = firstServer)
+    fun start(servingTeam: Team): MatchState {
+        val next = MatchState(rules = defaults,
+            firstServer = if (servingTeam == Team.A) Player.ME else Player.OPPONENT_1)
         persist(next, emptyList())
         initial = next
         points = emptyList()
@@ -75,7 +76,7 @@ class MatchRepository(context: Context) {
     }
 
     private fun persist(match: MatchState, log: List<Team>) {
-        val value = JSONObject().put("schemaVersion", 2).put("id", match.id)
+        val value = JSONObject().put("schemaVersion", 3).put("id", match.id)
             .put("rules", writeRules(match.rules)).put("firstServer", match.firstServer.name)
             .put("points", JSONArray(log.map { it.name }))
         check(preferences.edit().putString("current", value.toString()).commit()) {
@@ -87,10 +88,14 @@ class MatchRepository(context: Context) {
         .put("gamesToWinSet", rules.gamesToWinSet)
         .put("goldenPoint", rules.goldenPoint)
         .put("tieBreakEnabled", rules.tieBreakEnabled)
+        .put("setsToWinMatch", rules.setsToWinMatch ?: JSONObject.NULL)
 
     private fun readRules(value: JSONObject) = MatchRules(
         gamesToWinSet = value.optInt("gamesToWinSet", 6),
         goldenPoint = value.optBoolean("goldenPoint", false),
         tieBreakEnabled = value.optBoolean("tieBreakEnabled", true),
+        // Older matches had a fixed two-set target; explicit null means endless mode.
+        setsToWinMatch = if (value.has("setsToWinMatch") && value.isNull("setsToWinMatch")) null
+            else value.optInt("setsToWinMatch", 2),
     )
 }

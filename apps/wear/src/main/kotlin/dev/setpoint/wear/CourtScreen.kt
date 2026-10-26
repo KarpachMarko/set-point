@@ -26,7 +26,6 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -49,7 +48,6 @@ internal fun CourtScreen(
     onMenu: () -> Unit,
 ) {
     var input by remember { mutableStateOf(PointInput()) }
-    var notice by remember { mutableStateOf<String?>(null) }
     var rotaryBlockedUntil by remember { mutableLongStateOf(0L) }
     val focusRequester = remember { FocusRequester() }
     val haptics = LocalHapticFeedback.current
@@ -72,13 +70,8 @@ internal fun CourtScreen(
             input = PointInput()
         }
     }
-    LaunchedEffect(notice) {
-        if (notice != null) { delay(1800); notice = null }
-    }
-
     fun accept(result: PointInputResult) {
         input = result.selection
-        notice = null
         if (result.award != null) {
             rotaryBlockedUntil = SystemClock.uptimeMillis() + 650
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -94,8 +87,7 @@ internal fun CourtScreen(
         if (canUndo) {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             onUndo()
-            notice = "Point undone"
-        } else notice = "Nothing to undo"
+        }
     }
 
     BoxWithConstraints(
@@ -174,22 +166,20 @@ internal fun CourtScreen(
         listOf(Team.B, Team.A).forEach { team ->
             val top = team == Team.B
             val selected = input.team == team
-            Text(if (top) "OPPONENTS" else "MY TEAM",
-                modifier = Modifier.align(Alignment.TopCenter).offset(y = height * if (top) 0.18f else 0.78f),
-                color = if (selected) Lime else Muted, fontSize = 10.sp, lineHeight = 12.sp,
-                fontWeight = FontWeight.Medium)
-            Box(Modifier.align(Alignment.TopCenter)
-                .offset(y = height * if (top) 0.23f else 0.605f)
-                .height(height * 0.17f), contentAlignment = Alignment.Center) {
-                Text(match.pointLabel(team), color = if (selected) Lime else Color.White,
-                    fontSize = 38.sp, lineHeight = 42.sp, fontWeight = FontWeight.Bold)
-            }
+            // Measure the full text height instead of squeezing its baseline into a fixed box.
+            Text(match.pointLabel(team),
+                modifier = Modifier.align(Alignment.Center)
+                    .offset(y = height * if (top) -0.25f else 0.25f),
+                color = if (selected) Lime else Color.White,
+                fontSize = 38.sp, lineHeight = 48.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, softWrap = false)
         }
         if (match.winner == null) {
             // Even points serve from the right; the opponents' right is the viewer's left.
             Box(Modifier.offset(x = width * ballX, y = height * ballY)
                 .size(12.dp).semantics {
-                    contentDescription = "${match.servingPlayer.label()} serving from ${if (match.servingFromRight) "right" else "left"}"
+                    val teamLabel = if (match.server == Team.A) "My team" else "Opponents"
+                    contentDescription = "$teamLabel serving from ${if (match.servingFromRight) "right" else "left"}"
                 })
         }
         Column(Modifier.align(Alignment.Center).width(104.dp).height(44.dp)
@@ -207,24 +197,11 @@ internal fun CourtScreen(
             .padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center) {
-            Text(when (match.winner) {
-                Team.A -> "MY TEAM WINS"
-                Team.B -> "OPPONENTS WIN"
-                null -> if (match.isTieBreak) "TIE-BREAK" else "GAMES · OPP / MY"
-            }, color = Muted, fontSize = 7.sp, lineHeight = 9.sp)
-            Text(if (match.winner == null) "${match.gamesB} : ${match.gamesA}"
-                else "${match.sets(Team.B)} : ${match.sets(Team.A)}",
+            if (match.isTieBreak) {
+                Text("TIE-BREAK", color = Muted, fontSize = 7.sp, lineHeight = 9.sp)
+            }
+            Text("${match.gamesB} : ${match.gamesA}",
                 color = Lime, fontSize = 20.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold)
         }
-        val hint = when {
-            notice != null -> notice!!
-            busy -> "Saving…"
-            match.winner != null -> "Hold court to undo"
-            input.rotary -> "Keep turning to add +1"
-            input.team != null -> "Tap again to add +1"
-            else -> "Tap team · hold undo"
-        }
-        Text(hint, Modifier.align(Alignment.BottomCenter).padding(bottom = height * 0.075f),
-            color = if (input.team != null) Lime else Muted, fontSize = 9.sp, textAlign = TextAlign.Center)
     }
 }
