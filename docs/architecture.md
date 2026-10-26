@@ -45,6 +45,36 @@ This also handles re-opening completed matches. Undo removes the winning point a
 switches back to the court after saving; a new game uses the serving-team setup.
 Endless matches still record set results and serving order but never declare a winner.
 
+## Match visibility and ambient mode
+
+The repository stores an optional `sessionMatchId` alongside the match log. Only a matching
+unfinished match is an active session; older saved matches remain paused until continued.
+Starting a match, scoring, and undo update that marker atomically with the point log.
+Winning clears it; undoing the winning point activates it again. Returning from the court
+to the menu pauses the session without discarding the match. The session flag survives
+process recreation, allowing an active match to open directly on the court.
+
+The ViewModel owns one `MatchSessionNotification`, backed by the Wear `OngoingActivity`
+API. It posts a quiet local notification while a session is active and permission is
+available, updates the existing notification's score/status, and cancels it on pause or
+completion. Its PendingIntent routes both existing and recreated activities to the court;
+the resume request is consumed so later navigation is preserved. A static score requires
+no polling or foreground service. Notification permission is requested once when a session
+first starts; denied/disabled notifications can be enabled from the app's settings.
+
+`MainActivity` registers `AmbientLifecycleObserver` and supplies ambient state/timestamps
+to Compose. Ambient rendering replaces the interactive screen, disposing any pending
+point selection. `AmbientScoreScreen` draws a clock, point scores, games, and sets on
+black, with no interactive input or periodic app timer. Ambient callbacks update the clock;
+low-bit displays disable anti-aliasing, and burn-in protection uses outlined point scores
+with edge clearance. Paused/menu screens show only the ambient clock. Wake restores the
+normal UI, and Home remains under system control. The WAKE_LOCK permission is declared
+for the Wear ambient API; the app does not acquire its own wake lock or keep the screen
+in its full-power interactive state.
+
+Android instrumentation tests use isolated SharedPreferences to cover session restoration,
+pause/resume, wins and undo, replacement matches, endless mode, and settings isolation.
+
 ## Future companion
 
 For a native Android companion, add `apps/phone` to settings.gradle.kts. It may depend on

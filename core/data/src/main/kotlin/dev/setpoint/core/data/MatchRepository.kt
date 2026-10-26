@@ -36,6 +36,22 @@ class MatchRepository(context: Context) {
     fun current(): MatchState? = state
     fun settings(): MatchRules = defaults
     fun canUndo(): Boolean = points.isNotEmpty()
+    fun isSessionActive(): Boolean = state?.let {
+        it.winner == null && preferences.getString("sessionMatchId", null) == it.id
+    } == true
+
+    fun resumeSession() {
+        val match = state ?: return
+        if (match.winner == null && !isSessionActive()) {
+            check(preferences.edit().putString("sessionMatchId", match.id).commit()) {
+                "Could not resume match"
+            }
+        }
+    }
+
+    fun pauseSession() {
+        check(preferences.edit().remove("sessionMatchId").commit()) { "Could not pause match" }
+    }
 
     fun saveSettings(rules: MatchRules) {
         check(preferences.edit().putString("settings", writeRules(rules).toString()).commit()) {
@@ -47,7 +63,7 @@ class MatchRepository(context: Context) {
     fun start(servingTeam: Team): MatchState {
         val next = MatchState(rules = defaults,
             firstServer = if (servingTeam == Team.A) Player.ME else Player.OPPONENT_1)
-        persist(next, emptyList())
+        persist(next, emptyList(), sessionActive = true)
         initial = next
         points = emptyList()
         state = next
@@ -59,7 +75,7 @@ class MatchRepository(context: Context) {
         if (current.winner != null) return current
         val nextPoints = points + team
         val next = Scoring.award(current, team)
-        persist(checkNotNull(initial), nextPoints)
+        persist(checkNotNull(initial), nextPoints, sessionActive = isSessionActive() && next.winner == null)
         points = nextPoints
         state = next
         return next
@@ -69,17 +85,19 @@ class MatchRepository(context: Context) {
         if (points.isEmpty()) return state
         val nextPoints = points.dropLast(1)
         val next = nextPoints.fold(checkNotNull(initial), Scoring::award)
-        persist(checkNotNull(initial), nextPoints)
+        persist(checkNotNull(initial), nextPoints, sessionActive = next.winner == null)
         points = nextPoints
         state = next
         return next
     }
 
-    private fun persist(match: MatchState, log: List<Team>) {
+    private fun persist(match: MatchState, log: List<Team>, sessionActive: Boolean) {
         val value = JSONObject().put("schemaVersion", 3).put("id", match.id)
             .put("rules", writeRules(match.rules)).put("firstServer", match.firstServer.name)
             .put("points", JSONArray(log.map { it.name }))
-        check(preferences.edit().putString("current", value.toString()).commit()) {
+        val editor = preferences.edit().putString("current", value.toString())
+        if (sessionActive) editor.putString("sessionMatchId", match.id) else editor.remove("sessionMatchId")
+        check(editor.commit()) {
             "Could not save match"
         }
     }

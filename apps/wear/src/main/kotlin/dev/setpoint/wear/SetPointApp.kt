@@ -36,23 +36,49 @@ internal val Surface = Color(0xFF17231F)
 private enum class Screen { MENU, SETTINGS, NEW_MATCH, COURT, HISTORY }
 
 @Composable
-fun SetPointApp(state: AppState, model: MatchViewModel) {
-    var screen by rememberSaveable { mutableStateOf(Screen.MENU) }
+internal fun SetPointApp(
+    state: AppState,
+    model: MatchViewModel,
+    ambient: AmbientState,
+    is24Hour: Boolean,
+    resumeRequest: Int,
+    notificationsAllowed: Boolean,
+    onEnableNotifications: () -> Unit,
+    onResumeRequestHandled: () -> Unit,
+) {
+    var screen by rememberSaveable {
+        mutableStateOf(if (state.sessionActive) Screen.COURT else Screen.MENU)
+    }
+    LaunchedEffect(resumeRequest, state.busy) {
+        if (resumeRequest > 0 && !state.busy) {
+            if (state.match != null) model.resumeSession {
+                screen = Screen.COURT
+                onResumeRequestHandled()
+            } else onResumeRequestHandled()
+        }
+    }
     BackHandler(enabled = screen != Screen.MENU && (!state.busy || screen == Screen.SETTINGS)) {
-        screen = when (screen) {
-            Screen.HISTORY -> Screen.COURT
-            Screen.NEW_MATCH -> if (state.match?.winner != null) Screen.COURT else Screen.MENU
-            else -> Screen.MENU
+        if (screen == Screen.COURT && state.sessionActive) {
+            model.pauseSession { screen = Screen.MENU }
+        } else {
+            screen = when (screen) {
+                Screen.HISTORY -> Screen.COURT
+                Screen.NEW_MATCH -> if (state.match?.winner != null) Screen.COURT else Screen.MENU
+                else -> Screen.MENU
+            }
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        when (screen) {
+        if (ambient.active) {
+            AmbientScoreScreen(state.match.takeIf { state.sessionActive }, ambient, is24Hour)
+        } else when (screen) {
             Screen.MENU -> MenuScreen(state,
                 onNew = { screen = Screen.NEW_MATCH },
-                onContinue = { screen = Screen.COURT },
+                onContinue = { model.resumeSession { screen = Screen.COURT } },
                 onSettings = { screen = Screen.SETTINGS })
             Screen.SETTINGS -> SettingsScreen(state.settings, state.busy,
-                onChange = model::updateSettings)
+                onChange = model::updateSettings, notificationsAllowed = notificationsAllowed,
+                onEnableNotifications = onEnableNotifications)
             Screen.NEW_MATCH -> NewMatchScreen(state,
                 onStart = { model.start(it) { screen = Screen.COURT } })
             Screen.COURT -> state.match?.let { match ->
@@ -65,14 +91,14 @@ fun SetPointApp(state: AppState, model: MatchViewModel) {
                     CourtScreen(match, state.busy, state.canUndo,
                         onAward = model::award, onUndo = model::undo,
                         onHistory = { screen = Screen.HISTORY },
-                        onMenu = { screen = Screen.MENU })
+                        onMenu = { model.pauseSession { screen = Screen.MENU } })
                 }
             }
             Screen.HISTORY -> state.match?.let {
                 SetHistoryScreen(it) { screen = Screen.COURT }
             }
         }
-        state.error?.let { message ->
+        state.error?.takeUnless { ambient.active }?.let { message ->
             ScrollPage {
                 PageTitle("Unable to save")
                 Text(message, textAlign = TextAlign.Center, fontSize = 13.sp)
@@ -128,7 +154,13 @@ private fun MenuScreen(state: AppState, onNew: () -> Unit, onContinue: () -> Uni
 }
 
 @Composable
-private fun SettingsScreen(rules: MatchRules, busy: Boolean, onChange: (MatchRules) -> Unit) {
+private fun SettingsScreen(
+    rules: MatchRules,
+    busy: Boolean,
+    onChange: (MatchRules) -> Unit,
+    notificationsAllowed: Boolean,
+    onEnableNotifications: () -> Unit,
+) {
     // Keep the finite target when toggling endless mode within this visit.
     var lastFiniteSets by rememberSaveable { mutableIntStateOf(rules.setsToWinMatch ?: 2) }
     val games = rules.gamesToWinSet
@@ -136,6 +168,11 @@ private fun SettingsScreen(rules: MatchRules, busy: Boolean, onChange: (MatchRul
     val endless = rules.setsToWinMatch == null
     ScrollPage {
         PageTitle("Settings")
+        if (!notificationsAllowed) {
+            MenuAction("Allow match notifications", enabled = !busy, onClick = onEnableNotifications)
+            Text("Keeps your match available after sleep", color = Muted, fontSize = 11.sp,
+                textAlign = TextAlign.Center)
+        }
         Text("FOR NEW GAMES", fontSize = 10.sp, color = Muted)
         Text("Games to win a set", fontSize = 13.sp)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {

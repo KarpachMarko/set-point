@@ -12,6 +12,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -27,9 +28,17 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.wear.compose.material3)
     implementation(libs.wear.compose.foundation)
+    implementation(libs.wear.ambient) {
+        // AmbientLifecycleObserver uses ComponentActivity directly, without legacy Fragment support.
+        exclude(group = "androidx.fragment", module = "fragment")
+    }
+    implementation(libs.wear.ongoing)
+    implementation(libs.androidx.core)
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
+    androidTestImplementation(libs.test.runner)
+    androidTestImplementation(libs.test.junit)
 }

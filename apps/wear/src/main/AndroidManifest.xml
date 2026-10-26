@@ -1,9 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:name="android.hardware.type.watch" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application android:allowBackup="false" android:fullBackupContent="@xml/backup_rules" android:dataExtractionRules="@xml/data_extraction_rules" android:label="Set Point"
         android:icon="@drawable/ic_launcher" android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
+        <uses-library android:name="com.google.android.wearable" android:required="false" />
         <activity android:name=".MainActivity" android:exported="true"
             android:taskAffinity="${applicationId}.main">
             <intent-filter>

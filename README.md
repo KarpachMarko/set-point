@@ -30,6 +30,8 @@ Open this directory in Android Studio and select the `apps.wear` run configurati
 ./gradlew :apps:wear:testDebugUnitTest :apps:wear:lintDebug
 ./gradlew :apps:wear:assembleDebug
 ./gradlew :apps:wear:installDebug
+# Run Android session/persistence tests on a selected emulator or test watch:
+ANDROID_SERIAL=emulator-5554 ./gradlew :apps:wear:connectedDebugAndroidTest
 ```
 
 APK: `apps/wear/build/outputs/apk/debug/wear-debug.apk`.
@@ -92,7 +94,24 @@ undo works after restarting the app. Existing version 1 matches retain the origi
 six-game, advantage, tie-break rules; version 1 and 2 matches retain the two-set match
 target. Only the latest match is retained.
 
+Starting or continuing a match also starts an ongoing match session. Allow the notification
+permission when prompted: its quiet ongoing indicator keeps the match available after
+sleep and provides a shortcut back to the court from the watch face. If permission was
+denied, use **Settings → Allow match notifications** to enable it in the watch's settings.
+
+In ambient mode the app shows just the clock, point scores, games, and sets on black,
+without scoring controls or animations. Pending point selections clear when entering
+ambient mode; wake the watch before scoring again. The display still follows the watch's
+Always On Display setting. Home continues to work, and the match indicator can reopen
+the court directly. An active session also restores straight to the court after the app
+process is recreated.
+
+Returning to the menu from the court pauses the ongoing session and removes its
+indicator while keeping the match saved. Continue resumes it. A match win ends the
+session automatically; undoing the winning point reactivates it. In endless mode, use
+the court's Menu target or Back to pause the session when finished playing.
+
 `dev.setpoint.wear` is a provisional application ID; choose your own namespace before
-publishing. Localization, ambient behavior, workout recording, and a match archive remain
-future work. Layout and touch flows have been checked on a round Wear OS emulator;
+publishing. Localization, workout recording, and a match archive remain future work.
+Layout and touch flows have been checked on a round Wear OS emulator;
 physical bezel feel and haptics still need validation on a watch.

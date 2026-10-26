@@ -18,18 +18,31 @@ data class AppState(
     val match: MatchState?,
     val settings: MatchRules,
     val canUndo: Boolean,
+    val sessionActive: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
 )
 
 class MatchViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = MatchRepository(application)
+    private val notification = MatchSessionNotification(application)
     private val mutableState = MutableStateFlow(snapshot())
     val state = mutableState.asStateFlow()
 
-    private fun snapshot() = AppState(repository.current(), repository.settings(), repository.canUndo())
+    init { refreshSessionNotification() }
+
+    private fun snapshot() = AppState(repository.current(), repository.settings(), repository.canUndo(),
+        sessionActive = repository.isSessionActive())
+
+    fun notificationsAllowed() = notification.notificationsAllowed()
+    fun refreshSessionNotification() {
+        val state = mutableState.value
+        notification.update(state.match.takeIf { state.sessionActive })
+    }
 
     fun start(servingTeam: Team, onStarted: () -> Unit) = act(onStarted) { start(servingTeam) }
+    fun resumeSession(onResumed: () -> Unit) = act(onResumed) { resumeSession() }
+    fun pauseSession(onPaused: () -> Unit) = act(onPaused) { pauseSession() }
     fun updateSettings(rules: MatchRules) = act { saveSettings(rules) }
     fun award(team: Team) = act { award(team) }
     fun undo() = act { undo() }
@@ -42,6 +55,7 @@ class MatchViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 withContext(Dispatchers.IO) { repository.action() }
                 mutableState.value = snapshot()
+                refreshSessionNotification()
                 onSuccess()
             } catch (error: CancellationException) {
                 throw error
