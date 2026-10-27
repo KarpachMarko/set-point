@@ -16,6 +16,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -35,6 +36,9 @@ import androidx.wear.compose.material3.Text
 import dev.setpoint.core.scoring.MatchState
 import dev.setpoint.core.scoring.Team
 import kotlinx.coroutines.delay
+
+private val MyTeamColor = Color(0xFF72CFA5)
+private val OpponentsColor = Color(0xFF80BDDF)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -182,7 +186,7 @@ internal fun CourtScreen(
                     contentDescription = "$teamLabel serving from ${if (match.servingFromRight) "right" else "left"}"
                 })
         }
-        Column(Modifier.align(Alignment.Center).width(104.dp).height(44.dp)
+        Column(Modifier.align(Alignment.Center).width(104.dp).height(54.dp)
             .background(Color(0xFF080E0B), RoundedCornerShape(14.dp))
             .combinedClickable(
                 role = Role.Button,
@@ -193,15 +197,56 @@ internal fun CourtScreen(
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onHistory()
                 },
-            ).semantics { contentDescription = "Games: opponents ${match.gamesB}, my team ${match.gamesA}. Hold for set results" }
+            ).semantics(mergeDescendants = true) {
+                contentDescription = "Set ${match.completedSets.size + 1}. " +
+                    "Games: my team ${match.gamesA}, opponents ${match.gamesB}. " +
+                    "Sets won: my team ${match.sets(Team.A)}, opponents ${match.sets(Team.B)}. " +
+                    "Tap for set results"
+            }
             .padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center) {
-            if (match.isTieBreak) {
-                Text("TIE-BREAK", color = Muted, fontSize = 7.sp, lineHeight = 9.sp)
+            Text("Set ${match.completedSets.size + 1}${if (match.isTieBreak) " · TIE-BREAK" else ""}",
+                color = Muted, fontSize = 7.sp, lineHeight = 9.sp,
+                maxLines = 1, softWrap = false)
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("${match.gamesA}", color = MyTeamColor,
+                    fontSize = 20.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold)
+                Text(":", color = Muted, fontSize = 20.sp, lineHeight = 23.sp)
+                Text("${match.gamesB}", color = OpponentsColor,
+                    fontSize = 20.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold)
             }
-            Text("${match.gamesB} : ${match.gamesA}",
-                color = Lime, fontSize = 20.sp, lineHeight = 23.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(3.dp))
+            SetProgress(match, Modifier.fillMaxWidth().height(3.dp))
+        }
+    }
+}
+
+@Composable
+private fun SetProgress(match: MatchState, modifier: Modifier = Modifier) {
+    val target = match.rules.setsToWinMatch
+    // Each set won by the trailing team extends the shortest possible match by one.
+    val slots = target?.let { it + minOf(match.sets(Team.A), match.sets(Team.B)) }
+        ?: (match.completedSets.size + 1)
+    // Endless matches keep the most recent results readable instead of shrinking forever.
+    val first = if (target == null) (slots - 12).coerceAtLeast(0) else 0
+    Canvas(modifier) {
+        val count = slots - first
+        val step = size.width / count
+        val stroke = minOf(size.height, step / 3)
+        val inset = minOf(2.dp.toPx(), step / 3)
+        repeat(count) { index ->
+            val set = match.completedSets.getOrNull(first + index)
+            val color = when {
+                set == null -> Muted.copy(alpha = 0.45f)
+                set.a > set.b -> MyTeamColor
+                else -> OpponentsColor
+            }
+            drawLine(color,
+                Offset(step * index + inset, size.height / 2),
+                Offset(step * (index + 1) - inset, size.height / 2),
+                strokeWidth = stroke, cap = StrokeCap.Round)
         }
     }
 }

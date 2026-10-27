@@ -56,6 +56,10 @@ opens two buttons for **My team** or **Opponents** to serve first. Tapping eithe
 the match immediately and replaces the saved match; there is no separate confirmation.
 Use the watch's Back action to leave setup. Back from the court, or
 the Menu target at its top, returns to the menu without losing progress.
+The center games badge shows My team on the left in green and Opponents on the right
+in blue, with the current set above. Gray dashes below represent the minimum sets
+needed to finish the match; completed sets take their winner's color, and additional
+dashes appear as the trailing team wins sets. Endless mode shows the latest 12 markers.
 
 By default, selecting either serving team also launches Samsung Health's
 `com.samsung.android.wear.shealth.intent.action.START_WORKOUT` action, scoped to the

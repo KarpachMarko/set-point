@@ -31,7 +31,7 @@ internal fun AmbientScoreScreen(match: MatchState?, ambient: AmbientState, is24H
     Canvas(Modifier.fillMaxSize().background(Color.Black).semantics {
         contentDescription = if (match == null) "Ambient clock. $time" else
             "Ambient match score. Opponents ${match.pointLabel(Team.B)}, " +
-                "my team ${match.pointLabel(Team.A)}. Games ${match.gamesB} : ${match.gamesA}. $time"
+                "my team ${match.pointLabel(Team.A)}. Games: my team ${match.gamesA}, opponents ${match.gamesB}. $time"
     }) {
         val paint = Paint().apply {
             isAntiAlias = !ambient.lowBit
@@ -49,8 +49,8 @@ internal fun AmbientScoreScreen(match: MatchState?, ambient: AmbientState, is24H
         text(time, size.height * 0.09f, 11.sp.toPx())
         if (match == null) return@Canvas
         text(match.pointLabel(Team.B), size.height * 0.25f, 38.sp.toPx(), ambient.burnInProtection)
-        text("${match.gamesB} : ${match.gamesA}", size.height * 0.5f, 20.sp.toPx())
+        text("${match.gamesA} : ${match.gamesB}", size.height * 0.5f, 20.sp.toPx())
         text(match.pointLabel(Team.A), size.height * 0.75f, 38.sp.toPx(), ambient.burnInProtection)
-        text("Sets ${match.sets(Team.B)} : ${match.sets(Team.A)}", size.height * 0.9f, 10.sp.toPx())
+        text("Sets ${match.sets(Team.A)} : ${match.sets(Team.B)}", size.height * 0.9f, 10.sp.toPx())
     }
 }
