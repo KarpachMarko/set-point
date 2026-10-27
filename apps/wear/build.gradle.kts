@@ -33,6 +33,7 @@ dependencies {
         exclude(group = "androidx.fragment", module = "fragment")
     }
     implementation(libs.wear.ongoing)
+    implementation(libs.health.services)
     implementation(libs.androidx.core)
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.viewmodel.compose)

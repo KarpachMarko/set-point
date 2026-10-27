@@ -53,6 +53,12 @@ The workout-launch preference is stored separately from scoring rules and defaul
 when absent, including for existing installations. Settings autosave it through the same
 ViewModel action queue. After a new match is saved, the activity checks the latest preference
 before launching Samsung Health Tennis; turning it off leaves the user on the court.
+The activity first queries Health Services `getCurrentExerciseInfo` without starting or
+altering an exercise. Only `NO_EXERCISE_IN_PROGRESS` allows the external launch; an
+active, unknown, failed, or timed-out (2.5 seconds) query leaves the user on the court.
+Leaving the activity cancels the pending check, and launch eligibility is rechecked
+against the current match/session and preference after the query completes. Detection
+only covers workouts registered with Health Services.
 
 The court route displays the result screen whenever the persisted match has a winner.
 This also handles re-opening completed matches. Undo removes the winning point and

@@ -79,6 +79,11 @@ This is an undocumented, version-dependent integration.
 The launch requests Samsung Health's own task with `FLAG_ACTIVITY_NEW_TASK`, keeping
 Set Point separate in Recent apps so you can switch back to the saved court while the
 workout runs. Back navigation within the workout is controlled by Samsung Health.
+Before launching, Set Point queries Wear OS Health Services. If an exercise is already
+active (including paused tracking), the new game stays on the court without opening
+Samsung Health. If the check fails or takes longer than 2.5 seconds, the launch is also
+skipped and a message suggests starting Samsung Health manually. This detects exercises
+reported through Health Services; workouts tracked outside that service may not appear.
 The match is saved before launching Samsung Health. Return to Set Point to score; Continue,
 undo, and reopening the app do not launch the action again. If the action is unavailable
 or denied, a message appears and the match remains playable.

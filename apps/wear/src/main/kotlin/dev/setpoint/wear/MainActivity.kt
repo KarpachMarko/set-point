@@ -21,9 +21,14 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.health.services.client.HealthServices
+import androidx.health.services.client.getCurrentExerciseInfo
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.ambient.AmbientLifecycleObserver
 import androidx.wear.compose.material3.MaterialTheme
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var model: MatchViewModel
@@ -32,6 +37,7 @@ class MainActivity : ComponentActivity() {
     private var resumeRequest by mutableIntStateOf(0)
     private var isResumed by mutableStateOf(false)
     private var launchingWorkout by mutableStateOf(false)
+    private var workoutLaunchJob: Job? = null
     private val sessionPreferences by lazy { getSharedPreferences("session_ui", MODE_PRIVATE) }
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         refreshNotifications()
@@ -98,29 +104,61 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         isResumed = false
+        workoutLaunchJob?.cancel()
         super.onPause()
     }
 
     private fun launchSamsungWorkout() {
-        if (!model.state.value.launchWorkoutOnStart) return
+        if (!model.state.value.launchWorkoutOnStart || launchingWorkout) return
+        val matchId = model.state.value.match?.id ?: return
+        launchingWorkout = true
+        workoutLaunchJob = lifecycleScope.launch {
+            var launched = false
+            try {
+                val availability = checkWorkoutAvailability {
+                    HealthServices.getClient(this@MainActivity).exerciseClient.getCurrentExerciseInfo()
+                }
+                // Never navigate after the user has left or started a different match.
+                val current = model.state.value
+                if (!isResumed || current.match?.id != matchId || !current.sessionActive ||
+                    !current.launchWorkoutOnStart) return@launch
+                if (availability == WorkoutAvailability.UNKNOWN) {
+                    Log.w("SetPointWorkout", "Active workout status unavailable; skipping launch")
+                    Toast.makeText(this@MainActivity,
+                        "Couldn't check active workouts. Start Samsung Health manually if needed.",
+                        Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                if (availability == WorkoutAvailability.ACTIVE) {
+                    Log.i("SetPointWorkout", "Skipping workout launch: an exercise is already active")
+                    return@launch
+                }
+                launched = openSamsungWorkout()
+            } finally {
+                if (!launched) launchingWorkout = false
+            }
+        }
+    }
+
+    private fun openSamsungWorkout(): Boolean {
         // The installed Samsung handler reads this string and calls ExerciseType.valueOf().
         // Without it, Samsung opens an empty screen and logs "invalid type name: null".
-        launchingWorkout = true
-        try {
+        return try {
             Log.i("SetPointWorkout", "Requesting Samsung Health workout: exercise.type=TENNIS")
             startActivity(Intent("com.samsung.android.wear.shealth.intent.action.START_WORKOUT")
                 .setPackage("com.samsung.android.wear.shealth")
                 // Keep the workout in Samsung Health's task so Set Point stays accessible separately.
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra("exercise.type", "TENNIS"))
+            true
         } catch (error: ActivityNotFoundException) {
-            launchingWorkout = false
             Log.w("SetPointWorkout", "Samsung Health workout action is unavailable", error)
             Toast.makeText(this, "Samsung Health workout action is unavailable.", Toast.LENGTH_LONG).show()
+            false
         } catch (error: SecurityException) {
-            launchingWorkout = false
             Log.w("SetPointWorkout", "Samsung Health rejected the workout action", error)
             Toast.makeText(this, "Samsung Health did not allow starting a workout.", Toast.LENGTH_LONG).show()
+            false
         }
     }
 
