@@ -110,6 +110,8 @@ class MainActivity : ComponentActivity() {
             Log.i("SetPointWorkout", "Requesting Samsung Health workout: exercise.type=TENNIS")
             startActivity(Intent("com.samsung.android.wear.shealth.intent.action.START_WORKOUT")
                 .setPackage("com.samsung.android.wear.shealth")
+                // Keep the workout in Samsung Health's task so Set Point stays accessible separately.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra("exercise.type", "TENNIS"))
         } catch (error: ActivityNotFoundException) {
             launchingWorkout = false

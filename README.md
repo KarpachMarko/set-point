@@ -62,6 +62,9 @@ By default, selecting either serving team also launches Samsung Health's
 `com.samsung.android.wear.shealth` package, with the string extra `exercise.type=TENNIS`.
 That parameter matches the installed Samsung Health handler's exercise enum contract.
 This is an undocumented, version-dependent integration.
+The launch requests Samsung Health's own task with `FLAG_ACTIVITY_NEW_TASK`, keeping
+Set Point separate in Recent apps so you can switch back to the saved court while the
+workout runs. Back navigation within the workout is controlled by Samsung Health.
 The match is saved before launching Samsung Health. Return to Set Point to score; Continue,
 undo, and reopening the app do not launch the action again. If the action is unavailable
 or denied, a message appears and the match remains playable.
