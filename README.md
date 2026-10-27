@@ -56,6 +56,16 @@ opens two buttons for **My team** or **Opponents** to serve first. Tapping eithe
 the match immediately and replaces the saved match; there is no separate confirmation.
 Use the watch's Back action to leave setup. Back from the court, or
 the Menu target at its top, returns to the menu without losing progress.
+
+**Session history** in the main menu keeps the last 10 ended games on the watch, newest
+first, with a single date and start–end time range, scores, and the winning team.
+Sessions spanning midnight show both dates. Starting a
+new game saves an unfinished previous game as **Interrupted · No winner**, including
+its partial set and point score. Returning to the menu only pauses a game; it remains
+available through Continue game. Winning saves the result immediately; undoing the
+winning point removes that result until the game ends again. Dates unavailable for
+games saved by older app versions appear as **Date not recorded**.
+
 The center games badge shows My team on the left in green and Opponents on the right
 in blue, with the current set above. Gray dashes below represent the minimum sets
 needed to finish the match; completed sets take their winner's color, and additional

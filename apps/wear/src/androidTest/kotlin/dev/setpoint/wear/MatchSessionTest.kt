@@ -143,4 +143,94 @@ class MatchSessionTest {
         assertFalse(MatchRepository(context).launchWorkoutOnStart())
         assertNull(restored.current()?.rules?.setsToWinMatch)
     }
+
+    @Test fun replacingPausedGameArchivesItsExactScoreAndTimes() {
+        var time = 1_000L
+        val repository = MatchRepository(context) { time }
+        repository.start(Team.B)
+        val score = repository.award(Team.A)
+        repository.pauseSession()
+        assertTrue(repository.history().isEmpty())
+        time = 5_000L
+        val restored = MatchRepository(context) { time }
+        restored.start(Team.A)
+        val session = MatchRepository(context).history().single()
+        assertEquals(score, session.match)
+        assertFalse(session.completed)
+        assertEquals(1_000L, session.startedAt)
+        assertEquals(5_000L, session.endedAt)
+    }
+
+    @Test fun finishedGameIsArchivedImmediatelyAndKeepsItsEndTimeOnReplacement() {
+        var time = 1_000L
+        val repository = MatchRepository(context) { time }
+        repository.saveSettings(MatchRules(gamesToWinSet = 2, setsToWinMatch = 1))
+        repository.start(Team.A)
+        time = 2_000L
+        repeat(8) { repository.award(Team.B) }
+        val session = MatchRepository(context).history().single()
+        assertTrue(session.completed)
+        assertEquals(Team.B, session.match.winner)
+        assertEquals(2_000L, session.endedAt)
+        time = 9_000L
+        MatchRepository(context) { time }.start(Team.A)
+        assertEquals(listOf(session), MatchRepository(context).history())
+    }
+
+    @Test fun undoingWinRemovesResultAndRewinningRecordsNewEndTime() {
+        var time = 1_000L
+        val repository = MatchRepository(context) { time }
+        repository.saveSettings(MatchRules(gamesToWinSet = 2, setsToWinMatch = 1))
+        repository.start(Team.A)
+        repeat(8) { repository.award(Team.A) }
+        assertEquals(1, repository.history().size)
+        val restored = MatchRepository(context) { time }
+        restored.undo()
+        assertTrue(MatchRepository(context).history().isEmpty())
+        time = 4_000L
+        restored.award(Team.A)
+        assertEquals(4_000L, MatchRepository(context).history().single().endedAt)
+        assertEquals(1_000L, MatchRepository(context).history().single().startedAt)
+    }
+
+    @Test fun historyKeepsOnlyTenMostRecentSessionsInNewestFirstOrder() {
+        var time = 0L
+        val repository = MatchRepository(context) { time }
+        val ids = (0..12).map {
+            time += 1_000L
+            repository.start(Team.A).id
+        }
+        val history = MatchRepository(context).history()
+        assertEquals(ids.dropLast(1).takeLast(10).reversed(), history.map { it.match.id })
+        assertEquals(13_000L, history.first().endedAt)
+        assertTrue(history.none { it.completed })
+    }
+
+    @Test fun endlessGameWithSetsIsInterruptedRatherThanDeclaredWon() {
+        val repository = MatchRepository(context)
+        repository.saveSettings(MatchRules(gamesToWinSet = 2, setsToWinMatch = null))
+        repository.start(Team.A)
+        repeat(16) { repository.award(Team.A) }
+        repository.start(Team.B)
+        val session = MatchRepository(context).history().single()
+        assertEquals(2, session.match.sets(Team.A))
+        assertFalse(session.completed)
+        assertNull(session.match.winner)
+        assertNotNull(session.endedAt)
+    }
+
+    @Test fun legacyGameWithoutDatesIsPreservedWhenReplaced() {
+        val repository = MatchRepository(context)
+        val match = repository.start(Team.A)
+        val saved = org.json.JSONObject(preferences.getString("current", null)!!)
+        saved.remove("startedAt")
+        saved.remove("endedAt")
+        saved.put("schemaVersion", 3)
+        preferences.edit().putString("current", saved.toString()).commit()
+        MatchRepository(context) { 8_000L }.start(Team.B)
+        val session = MatchRepository(context).history().single()
+        assertEquals(match, session.match)
+        assertNull(session.startedAt)
+        assertEquals(8_000L, session.endedAt)
+    }
 }

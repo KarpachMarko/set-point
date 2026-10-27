@@ -7,7 +7,7 @@ Keep screens, input handling, haptics, and watch lifecycle in the Wear app. Keep
 rules independent of Android so another UI can reuse them.
 
 The repository stores the current match UUID, immutable rules, first server, and ordered
-point log in private SharedPreferences (schema version 3). Replaying the log reconstructs
+point log in private SharedPreferences (schema version 4). Replaying the log reconstructs
 state, all four players' service turns, and undo. Version 1 logs replay with the original
 default rules and first server. Default settings are stored separately and only apply to
 new matches. Version 3 rules add `setsToWinMatch`: an explicit JSON null means endless
@@ -22,8 +22,17 @@ on the settings composable remaining on screen. Active matches retain their own 
 Writes run off the UI thread and complete before publishing the new state. The ViewModel
 gates actions while a write is pending; the repository updates its in-memory state only
 after a successful commit and exposes failures to the UI. It caches the current state
-for normal scoring and replays the log for undo. This small implementation can migrate
-to Room when a match archive is added.
+for normal scoring and replays the log for undo.
+
+The same preferences keep a bounded archive of the last 10 ended sessions, newest first.
+Each entry contains the original rules, server and point log plus start/end epoch
+milliseconds. Wins archive immediately; replacing an unfinished game archives it with
+no winner and the replacement time as its end time. Pausing does not end a game. Undo
+removes the current match from the archive, and rewinning records a new end time.
+Archive and current-match changes share one commit, with entries deduplicated by match
+UUID. Existing matches retain unknown timestamps as null. History displays dates/times
+using the watch's locale and clock preference, and preserves partial scores for
+interrupted games. Archived games are read-only and cannot replace the current game.
 
 The Wear UI owns navigation, haptics, selection timeout, and bezel cooldown. The pure
 `PointInput` reducer requires selection before confirmation, resets rotary progress when

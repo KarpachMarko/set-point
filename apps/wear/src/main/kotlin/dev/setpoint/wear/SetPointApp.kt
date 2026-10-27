@@ -1,5 +1,6 @@
 package dev.setpoint.wear
 
+import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -25,15 +27,17 @@ import androidx.wear.compose.material3.TextButton
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
+import dev.setpoint.core.data.MatchSession
 import dev.setpoint.core.scoring.MatchRules
 import dev.setpoint.core.scoring.MatchState
 import dev.setpoint.core.scoring.Team
+import java.util.Date
 
 internal val Lime = Color(0xFFD3F56A)
 internal val Muted = Color(0xFFACB7B4)
 internal val Surface = Color(0xFF17231F)
 
-private enum class Screen { MENU, SETTINGS, NEW_MATCH, COURT, HISTORY }
+private enum class Screen { MENU, SETTINGS, NEW_MATCH, COURT, HISTORY, SESSIONS }
 
 @Composable
 internal fun SetPointApp(
@@ -79,6 +83,7 @@ internal fun SetPointApp(
                 state,
                 onNew = { screen = Screen.NEW_MATCH },
                 onContinue = { model.resumeSession { screen = Screen.COURT } },
+                onSessions = { screen = Screen.SESSIONS },
                 onSettings = { screen = Screen.SETTINGS })
 
             Screen.SETTINGS -> SettingsScreen(
@@ -117,6 +122,7 @@ internal fun SetPointApp(
             Screen.HISTORY -> state.match?.let {
                 SetHistoryScreen(it) { screen = Screen.COURT }
             }
+            Screen.SESSIONS -> SessionHistoryScreen(state.history) { screen = Screen.MENU }
         }
         state.error?.takeUnless { ambient.active }?.let { message ->
             ScrollPage {
@@ -178,6 +184,7 @@ private fun MenuScreen(
     state: AppState,
     onNew: () -> Unit,
     onContinue: () -> Unit,
+    onSessions: () -> Unit,
     onSettings: () -> Unit
 ) {
     ScrollPage {
@@ -199,6 +206,7 @@ private fun MenuScreen(
             )
         }
         MenuAction("Start new game", !state.busy, onNew)
+        MenuAction("Session history", !state.busy, onSessions)
         MenuAction("Settings", !state.busy, onSettings)
     }
 }
@@ -345,10 +353,67 @@ private fun NewMatchScreen(state: AppState, onStart: (Team) -> Unit) {
         Text(state.settings.matchLengthLabel(), color = Muted, fontSize = 11.sp)
         if (state.match?.winner == null && state.match != null) {
             Text(
-                "Selecting a team replaces your current game.", color = Color(0xFFFFC58C),
+                "Your current game will be saved as interrupted.", color = Color(0xFFFFC58C),
                 fontSize = 11.sp, textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+@Composable
+private fun SessionHistoryScreen(sessions: List<MatchSession>, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val dateFormat = DateFormat.getDateFormat(context)
+    val timeFormat = DateFormat.getTimeFormat(context)
+    ScrollPage {
+        PageTitle("Session history")
+        Text("LAST 10 ENDED GAMES", color = Muted, fontSize = 10.sp)
+        if (sessions.isEmpty()) {
+            Text("No ended sessions yet", color = Muted, fontSize = 12.sp,
+                textAlign = TextAlign.Center)
+        }
+        sessions.forEach { session ->
+            val match = session.match
+            val start = session.startedAt?.let(::Date)
+            val end = session.endedAt?.let(::Date)
+            val startDate = start?.let(dateFormat::format)
+            val endDate = end?.let(dateFormat::format)
+            val dateLabel = if (startDate != null && endDate != null && startDate != endDate)
+                "$startDate – $endDate" else startDate ?: endDate ?: "Date not recorded"
+            val timeLabel = when {
+                start != null && end != null -> "${timeFormat.format(start)} – ${timeFormat.format(end)}"
+                end != null -> "Ended ${timeFormat.format(end)}"
+                start != null -> "Started ${timeFormat.format(start)}"
+                else -> null
+            }
+            Column(Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(16.dp))
+                .padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(when (match.winner) {
+                    Team.A -> "My team won"
+                    Team.B -> "Opponents won"
+                    null -> "Interrupted · No winner"
+                }, color = when (match.winner) {
+                    Team.A -> Lime
+                    Team.B -> Color(0xFF80BDDF)
+                    null -> Muted
+                }, fontSize = 13.sp, lineHeight = 16.sp,
+                    fontWeight = FontWeight.Bold)
+                Text(dateLabel, color = Muted, fontSize = 10.sp, lineHeight = 13.sp)
+                timeLabel?.let { Text(it, color = Muted, fontSize = 10.sp, lineHeight = 13.sp) }
+                Text("${match.sets(Team.A)} : ${match.sets(Team.B)} sets", fontSize = 16.sp,
+                    lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+                if (match.completedSets.isNotEmpty()) {
+                    Text(match.completedSets.joinToString(" · ") { "${it.a}–${it.b}" },
+                        fontSize = 12.sp, lineHeight = 15.sp, color = Muted)
+                }
+                if (!session.completed) {
+                    Text("Set ${match.completedSets.size + 1}: ${match.gamesA} : ${match.gamesB} games\n" +
+                        "${match.pointLabel(Team.A)} : ${match.pointLabel(Team.B)} points",
+                        fontSize = 11.sp, lineHeight = 14.sp, color = Muted)
+                }
+            }
+        }
+        MenuAction("Back to menu", onClick = onBack)
     }
 }
 

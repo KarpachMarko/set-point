@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.setpoint.core.data.MatchRepository
+import dev.setpoint.core.data.MatchSession
 import dev.setpoint.core.scoring.MatchRules
 import dev.setpoint.core.scoring.MatchState
 import dev.setpoint.core.scoring.Team
@@ -22,6 +23,7 @@ data class AppState(
     val sessionActive: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
+    val history: List<MatchSession> = emptyList(),
 )
 
 class MatchViewModel(application: Application) : AndroidViewModel(application) {
@@ -34,7 +36,7 @@ class MatchViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun snapshot() = AppState(repository.current(), repository.settings(), repository.canUndo(),
         launchWorkoutOnStart = repository.launchWorkoutOnStart(),
-        sessionActive = repository.isSessionActive())
+        sessionActive = repository.isSessionActive(), history = repository.history())
 
     fun notificationsAllowed() = notification.notificationsAllowed()
     fun refreshSessionNotification() {
